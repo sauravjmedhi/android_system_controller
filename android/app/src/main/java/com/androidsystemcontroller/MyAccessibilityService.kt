@@ -107,15 +107,50 @@ class MyAccessibilityService : AccessibilityService() {
         }, 400) // small delay per retry
     }
 
+    fun performSafeClick(node: AccessibilityNodeInfo) {
+        var current: AccessibilityNodeInfo? = node
+
+        while (current != null) {
+            if (current.isClickable) {
+                current.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                android.util.Log.d("A11Y", "Clicked node successfully")
+                return
+            }
+            current = current.parent
+        }
+
+        android.util.Log.d("A11Y", "No clickable parent found")
+    }
+
+    fun forceEndCallCheck() {
+        val rootNode = rootInActiveWindow ?: return
+
+        val normalTarget = findNormalEndCall(rootNode)
+        val fallbackTarget = findBestEndCall(rootNode)
+
+        val finalTarget = normalTarget ?: fallbackTarget
+
+        android.util.Log.d("A11Y_FORCE", "Force check triggered")
+
+        finalTarget?.let {
+            android.util.Log.d("A11Y_FORCE", "Clicking from force check")
+            performSafeClick(it)
+        }
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (!shouldClickNow) return
         if (lastHandledTrigger == triggerId) return
 
         val rootNode = rootInActiveWindow ?: return
-        val target = findBestEndCall(rootNode)
 
-        target?.let {
-            it.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        val normalTarget = findNormalEndCall(rootNode)
+        val fallbackTarget = findBestEndCall(rootNode)
+
+        val finalTarget = normalTarget ?: fallbackTarget
+
+        finalTarget?.let {
+            performSafeClick(it)
 
             lastHandledTrigger = triggerId
             shouldClickNow = false
@@ -124,14 +159,44 @@ class MyAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {}
 
+    private fun findNormalEndCall(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val queue: Queue<AccessibilityNodeInfo> = LinkedList()
+        queue.add(root)
+
+        while (queue.isNotEmpty()) {
+            val node = queue.poll()
+            val desc = node.contentDescription?.toString()
+
+            if (desc != null && desc.contains("End call", ignoreCase = true)) {
+
+                // 🔥 ensure it's clickable OR has clickable parent
+                if (node.isClickable) return node
+
+                var parent = node.parent
+                while (parent != null) {
+                    if (parent.isClickable) return parent
+                    parent = parent.parent
+                }
+            }
+
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i)
+                if (child != null) queue.add(child)
+            }
+        }
+
+        return null
+    }
+
     private fun findBestEndCall(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         var bestNode: AccessibilityNodeInfo? = null
         var lowestY = -1
-        val screenWidth = resources.displayMetrics.widthPixels
-        val centerX = screenWidth / 2
 
         val rect = Rect()
         node.getBoundsInScreen(rect)
+
+        val screenWidth = resources.displayMetrics.widthPixels
+        val centerX = screenWidth / 2
 
         val isCenter = rect.centerX() in (centerX - 120)..(centerX + 120)
 

@@ -98,6 +98,7 @@ class MyForegroundService : Service() {
                 } else {
                     MyAccessibilityService.triggerId++
                     MyAccessibilityService.shouldClickNow = true
+                    MyAccessibilityService.instance?.forceEndCallCheck()
                 }
 
                 Thread.sleep(5000)
