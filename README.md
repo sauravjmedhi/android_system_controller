@@ -1,11 +1,11 @@
 # Call Timer
 
-A minimal, hacker-style call timer that automatically ends calls after a set duration.
+A minimal call timer that automatically ends calls after a set duration.
 
 ## Features
 - Set a custom timer for calls
 - Automatically ends phone calls
-- Supports WhatsApp calls (experimental)
+- Supports WhatsApp calls
 - Live countdown via notification
 - Clean, distraction-free interface
 
