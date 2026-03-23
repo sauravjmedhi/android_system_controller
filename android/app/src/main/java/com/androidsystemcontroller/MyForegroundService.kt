@@ -18,6 +18,10 @@ class MyForegroundService : Service() {
         val callType = intent?.getStringExtra("CALL_TYPE") ?: "normal"
         val durationSeconds = intent?.getIntExtra("DURATION", 10) ?: 10
 
+        val prefs = getSharedPreferences("TIMER_PREFS", MODE_PRIVATE)
+        val endTime = System.currentTimeMillis() + (durationSeconds * 1000)
+        prefs.edit().putLong("END_TIME", endTime).apply()
+
         val channelId = "sleep_timer_channel"
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -46,16 +50,20 @@ class MyForegroundService : Service() {
 
         val thread = Thread {
             try {
-
-                for (i in durationSeconds downTo 1) {
-
+                while (true) {
                     if (Thread.currentThread().isInterrupted) {
                         android.util.Log.d("SleepTimer", "Previous timer cancelled")
                         return@Thread
                     }
 
-                    val minutes = i / 60
-                    val seconds = i % 60
+                    val remainingMillis = endTime - System.currentTimeMillis()
+
+                    if (remainingMillis <= 0) break
+
+                    val totalSeconds = (remainingMillis / 1000).toInt()
+                    val minutes = totalSeconds / 60
+                    val seconds = totalSeconds % 60
+
                     val timeFormatted = String.format("%02d:%02d", minutes, seconds)
 
                     notificationManager.notify(
@@ -92,6 +100,8 @@ class MyForegroundService : Service() {
 
                 Thread.sleep(1000)
 
+                prefs.edit().remove("END_TIME").apply()
+
                 stopForeground(true)
                 stopSelf()
 
@@ -118,5 +128,27 @@ class MyForegroundService : Service() {
 
         currentThread?.interrupt()
         currentThread = null
+
+        val prefs = getSharedPreferences("TIMER_PREFS", MODE_PRIVATE)
+        prefs.edit().remove("END_TIME").apply()
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+
+        android.util.Log.d("SleepTimer", "App removed → stopping timer")
+
+        // Stop running thread
+        currentThread?.interrupt()
+        currentThread = null
+
+        val prefs = getSharedPreferences("TIMER_PREFS", MODE_PRIVATE)
+        prefs.edit().remove("END_TIME").apply()
+
+        // Remove notification
+        stopForeground(true)
+
+        // Stop service completely
+        stopSelf()
     }
 }
