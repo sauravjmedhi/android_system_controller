@@ -13,6 +13,8 @@ class MyForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        android.util.Log.d("SleepTimer", "Timer Started")
+
         currentThread?.interrupt()
 
         val callType = intent?.getStringExtra("CALL_TYPE") ?: "normal"
@@ -98,7 +100,7 @@ class MyForegroundService : Service() {
                     MyAccessibilityService.shouldClickNow = true
                 }
 
-                Thread.sleep(1000)
+                Thread.sleep(5000)
 
                 prefs.edit().remove("END_TIME").apply()
 
