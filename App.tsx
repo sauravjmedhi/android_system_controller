@@ -99,7 +99,7 @@ export default function App() {
     const minutes = parseInt(time) || 1;
     const seconds = minutes * 60;
 
-    SleepTimer.startService(callType, 20);
+    SleepTimer.startService(callType, seconds);
 
     setRemainingTime(seconds);
     setIsRunning(true);
