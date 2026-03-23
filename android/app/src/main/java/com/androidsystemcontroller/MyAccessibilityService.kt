@@ -4,30 +4,39 @@ import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.graphics.Rect
+import java.util.Queue
+import java.util.LinkedList
 
 class MyAccessibilityService : AccessibilityService() {
 
     companion object {
         var shouldClickNow = false
         var triggerId = 0
+        var instance: MyAccessibilityService? = null
     }
 
     private var lastHandledTrigger = -1
 
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        instance = this
+        android.util.Log.d("A11Y", "Accessibility Connected")
+    }
+
+    fun performWhatsAppClickNow() {
+        val rootNode = rootInActiveWindow ?: return
+        val target = findWhatsAppEndCall(rootNode)
+        target?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-
-        // 🚨 Only act when triggered
         if (!shouldClickNow) return
-
-        // 🚨 Prevent duplicate handling
         if (lastHandledTrigger == triggerId) return
 
         val rootNode = rootInActiveWindow ?: return
-
         val target = findBestEndCall(rootNode)
 
         target?.let {
-            android.util.Log.d("A11Y", "CLICKING BEST MATCH")
             it.performAction(AccessibilityNodeInfo.ACTION_CLICK)
 
             lastHandledTrigger = triggerId
@@ -37,12 +46,9 @@ class MyAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {}
 
-    // 🔥 Find best candidate (center + lowest)
     private fun findBestEndCall(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-
         var bestNode: AccessibilityNodeInfo? = null
         var lowestY = -1
-
         val screenWidth = resources.displayMetrics.widthPixels
         val centerX = screenWidth / 2
 
@@ -59,8 +65,9 @@ class MyAccessibilityService : AccessibilityService() {
         }
 
         for (i in 0 until node.childCount) {
-            node.getChild(i)?.let {
-                val candidate = findBestEndCall(it)
+            val child = node.getChild(i)
+            if (child != null) {
+                val candidate = findBestEndCall(child)
                 if (candidate != null) {
                     val r = Rect()
                     candidate.getBoundsInScreen(r)
@@ -76,8 +83,26 @@ class MyAccessibilityService : AccessibilityService() {
         return bestNode
     }
 
-    override fun onServiceConnected() {
-        super.onServiceConnected()
-        android.util.Log.d("A11Y", "Accessibility Connected")
+    private fun findWhatsAppEndCall(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val queue: Queue<AccessibilityNodeInfo> = LinkedList()
+        queue.add(root)
+
+        while (queue.isNotEmpty()) {
+            val node = queue.poll()
+            val desc = node.contentDescription?.toString()
+
+            if (desc != null && desc.contains("Leave call", ignoreCase = true)) {
+                return node
+            }
+
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i)
+                if (child != null) {
+                    queue.add(child)
+                }
+            }
+        }
+
+        return null
     }
 }
